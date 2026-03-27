@@ -1,0 +1,6 @@
+@LifeLink_V2_HostAddress = http://localhost:5193
+
+GET {{LifeLink_V2_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
