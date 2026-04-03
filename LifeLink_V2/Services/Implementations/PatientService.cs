@@ -1,9 +1,12 @@
 ﻿using LifeLink_V2.Data;
 using LifeLink_V2.DTOs.Patient;
+using LifeLink_V2.DTOs.Discovery;
 using LifeLink_V2.Helpers;
 using LifeLink_V2.Models;
 using LifeLink_V2.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LifeLink_V2.Services.Implementations
 {
@@ -17,6 +20,8 @@ namespace LifeLink_V2.Services.Implementations
             _context = context;
             _logger = logger;
         }
+
+        #region Patient CRUD & search (existing)
 
         public async Task<ApiResponse> CreatePatientAsync(CreatePatientDto createDto, int createdBy)
         {
@@ -334,7 +339,7 @@ namespace LifeLink_V2.Services.Implementations
                     patient.InsuranceNumber = updateDto.InsuranceNumber.Trim();
 
                 if (updateDto.DOB.HasValue)
-                    patient.Dob =DateOnly.FromDateTime( updateDto.DOB.Value);
+                    patient.Dob = DateOnly.FromDateTime(updateDto.DOB.Value);
 
                 if (!string.IsNullOrWhiteSpace(updateDto.Gender))
                     patient.Gender = updateDto.Gender;
@@ -520,7 +525,7 @@ namespace LifeLink_V2.Services.Implementations
                         InsuranceCompanyId = p.InsuranceCompanyId,
                         InsuranceCompanyName = p.InsuranceCompany != null ? p.InsuranceCompany.CompanyName : null,
                         InsuranceNumber = p.InsuranceNumber,
-                        DOB =Convert.ToDateTime( p.Dob),
+                        DOB = Convert.ToDateTime(p.Dob),
                         Gender = p.Gender,
                         BloodType = p.BloodType,
                         CreatedAt = p.CreatedAt,
@@ -703,6 +708,371 @@ namespace LifeLink_V2.Services.Implementations
             }
         }
 
+        #endregion
+
+        #region IPatientService implementations (required)
+
+        public async Task<ApiResponse> GetDashboardAsync(int userId)
+        {
+            try
+            {
+                var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsDeleted);
+                if (patient == null) return ApiResponseHelper.NotFound("المريض غير موجود");
+
+                // cancelled status id (safe fallback)
+                var cancelledId = await _context.AppointmentStatuses
+                    .Where(s => s.StatusName == "Cancelled")
+                    .Select(s => s.StatusId)
+                    .FirstOrDefaultAsync();
+
+                var upcoming = await _context.Appointments
+                    .CountAsync(a => a.PatientId == patient.PatientId && a.ScheduledAt >= DateTime.UtcNow && a.StatusId != cancelledId);
+
+                var pendingPrescriptions = await _context.Prescriptions
+                    .Where(p => p.PatientId == patient.PatientId && p.Status != null && p.Status != "Completed")
+                    .CountAsync();
+
+                var unreadNotifications = await _context.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
+
+                var outstanding = await _context.Payments.Where(p => p.PatientId == patient.PatientId )
+                    .SumAsync(p => (decimal?)p.AmountSyp) ?? 0m;
+
+                var dto = new PatientDashboardDto
+                {
+                    UpcomingAppointments = upcoming,
+                    PendingPrescriptions = pendingPrescriptions,
+                    UnreadNotifications = unreadNotifications,
+                    OutstandingPaymentsSyp = outstanding
+                };
+
+                return ApiResponseHelper.Success(dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building patient dashboard for user {UserId}", userId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> SearchDiscoveryAsync(string type, string query, int page, int pageSize)
+        {
+            // implemented above in SearchPatientsAsync style — reuse that logic
+            return await SearchDiscoveryInternal(type, query, page, pageSize);
+        }
+
+        private async Task<ApiResponse> SearchDiscoveryInternal(string type, string query, int page, int pageSize)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 1, 100);
+
+                if (string.IsNullOrWhiteSpace(query))
+                    query = string.Empty;
+
+                if (type?.ToLower() == "clinic")
+                {
+                    var q = _context.Providers.Where(p => p.IsActive && !p.IsDeleted &&
+                        (EF.Functions.Like(p.ProviderName, $"%{query}%") || EF.Functions.Like(p.Address ?? "", $"%{query}%")));
+
+                    var total = await q.CountAsync();
+                    var items = await q.Skip((page - 1) * pageSize).Take(pageSize)
+                        .Select(p => new ClinicDto
+                        {
+                            ProviderId = p.ProviderId,
+                            ProviderName = p.ProviderName,
+                            Address = p.Address,
+                            Phone = p.Phone,
+                            CityId = p.CityId,
+                            CityName = p.City != null ? p.City.CityName : null,
+                            IsActive = p.IsActive
+                        }).ToListAsync();
+
+                    return ApiResponseHelper.Success(new { Items = items, Total = total, Page = page, PageSize = pageSize });
+                }
+                else // doctors
+                {
+                    var q = _context.ProviderDoctors.Where(d => d.IsActive &&
+                        (EF.Functions.Like(d.FullName, $"%{query}%") || EF.Functions.Like(d.WorkingHours ?? "", $"%{query}%")));
+
+                    var total = await q.CountAsync();
+                    var items = await q.Skip((page - 1) * pageSize).Take(pageSize)
+                        .Select(d => new DoctorDto
+                        {
+                            DoctorId = d.DoctorId,
+                            ProviderId = d.ProviderId,
+                            FullName = d.FullName,
+                            SpecialtyId = d.SpecialtyId,
+                            SpecialtyName = d.Specialty != null ? d.Specialty.SpecialtyName : null,
+                            Phone = d.Phone,
+                            Email = d.Email,
+                            WorkingHours = d.WorkingHours,
+                            IsActive = d.IsActive
+                        }).ToListAsync();
+
+                    return ApiResponseHelper.Success(new { Items = items, Total = total, Page = page, PageSize = pageSize });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching discovery type {Type}", type);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetClinicByIdAsync(int clinicId)
+        {
+            try
+            {
+                var p = await _context.Providers
+                    .Include(x => x.City)
+                    .ThenInclude(c => c.Governorate)
+                    .FirstOrDefaultAsync(x => x.ProviderId == clinicId && !x.IsDeleted);
+
+                if (p == null) return ApiResponseHelper.NotFound("Clinic not found");
+
+                var dto = new ClinicDto
+                {
+                    ProviderId = p.ProviderId,
+                    ProviderName = p.ProviderName,
+                    Address = p.Address,
+                    Phone = p.Phone,
+                    CityId = p.CityId,
+                    CityName = p.City?.CityName,
+                    IsActive = p.IsActive
+                };
+
+                return ApiResponseHelper.Success(dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching clinic {ClinicId}", clinicId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetDoctorByIdAsync(int doctorId)
+        {
+            try
+            {
+                var d = await _context.ProviderDoctors
+                    .Include(x => x.Specialty)
+                    .Include(x => x.Provider)
+                    .FirstOrDefaultAsync(x => x.DoctorId == doctorId && !x.IsActive);
+
+                if (d == null) return ApiResponseHelper.NotFound("Doctor not found");
+
+                var dto = new DoctorDto
+                {
+                    DoctorId = d.DoctorId,
+                    ProviderId = d.ProviderId,
+                    FullName = d.FullName,
+                    SpecialtyId = d.SpecialtyId,
+                    SpecialtyName = d.Specialty?.SpecialtyName,
+                    Phone = d.Phone,
+                    Email = d.Email,
+                    WorkingHours = d.WorkingHours,
+                    IsActive = d.IsActive
+                };
+
+                return ApiResponseHelper.Success(dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching doctor {DoctorId}", doctorId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetClinicSlotsAsync(int clinicId, DateTime date, int? doctorId)
+        {
+            try
+            {
+                var appointmentService = new AppointmentService(_context, NullLogger<AppointmentService>.Instance);
+                return await appointmentService.GetProviderAvailabilityAsync(clinicId, doctorId, date);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting clinic slots for {ClinicId}", clinicId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetDoctorSlotsAsync(int doctorId, DateTime date)
+        {
+            try
+            {
+                var appointmentService = new AppointmentService(_context, NullLogger<AppointmentService>.Instance);
+                return await appointmentService.GetDoctorAvailabilitySlotsAsync(doctorId, date);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting doctor slots for {DoctorId}", doctorId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetHealthRecordsOverviewAsync(int userId)
+        {
+            try
+            {
+                var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsDeleted);
+                if (patient == null) return ApiResponseHelper.NotFound("Patient not found");
+
+                var prescriptionsCount = await _context.Prescriptions.CountAsync(p => p.PatientId == patient.PatientId);
+                var labOrdersCount = await _context.LabTestOrders.CountAsync(o => o.PatientId == patient.PatientId);
+                var medFilesCount = await _context.MedFiles.CountAsync(m => m.PatientId == patient.PatientId);
+
+                var data = new
+                {
+                    Prescriptions = prescriptionsCount,
+                    LabOrders = labOrdersCount,
+                    MedicalFiles = medFilesCount
+                };
+
+                return ApiResponseHelper.Success(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting health overview for user {UserId}", userId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetPrescriptionsAsync(int userId, string? status, int page, int pageSize)
+        {
+            try
+            {
+                var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsDeleted);
+                if (patient == null) return ApiResponseHelper.NotFound("Patient not found");
+
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 1, 100);
+
+                var q = _context.Prescriptions.Where(p => p.PatientId == patient.PatientId && !p.IsDeleted);
+
+                if (!string.IsNullOrWhiteSpace(status))
+                    q = q.Where(p => p.Status == status);
+
+                var total = await q.CountAsync();
+                var list = await q.OrderByDescending(p => p.CreatedAt)
+                    .Skip((page - 1) * pageSize).Take(pageSize)
+                    .Select(p => new PrescriptionSummaryDto
+                    {
+                        PrescriptionId = p.PrescriptionId,
+                        PrescriptionCode = p.PrescriptionCode,
+                        CreatedAt = p.CreatedAt,
+                        Status = p.Status ?? "Unknown",
+                       
+                    }).ToListAsync();
+
+                return ApiResponseHelper.Success(new { Items = list, Total = total, Page = page, PageSize = pageSize });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listing prescriptions for user {UserId}", userId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetPrescriptionByIdAsync(int userId, int prescriptionId)
+        {
+            try
+            {
+                var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsDeleted);
+                if (patient == null) return ApiResponseHelper.NotFound("Patient not found");
+
+                var pres = await _context.Prescriptions
+                    .Include(p => p.PrescriptionItems)
+                    .FirstOrDefaultAsync(p => p.PrescriptionId == prescriptionId && p.PatientId == patient.PatientId);
+
+                if (pres == null) return ApiResponseHelper.NotFound("Prescription not found");
+
+                var dto = new
+                {
+                    pres.PrescriptionId,
+                    pres.PrescriptionCode,
+                    pres.CreatedAt,
+                    pres.Status,
+                    Items = pres.PrescriptionItems.Select(i => new { i.PrescriptionItemId , i.Quantity, i.UnitPriceSyp, i.LineTotalSyp })
+                };
+
+                return ApiResponseHelper.Success(dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching prescription {PrescriptionId}", prescriptionId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetLabResultsAsync(int userId, int limit, int page)
+        {
+            try
+            {
+                var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsDeleted);
+                if (patient == null) return ApiResponseHelper.NotFound("Patient not found");
+
+                limit = Math.Clamp(limit, 1, 100);
+                page = Math.Max(1, page);
+
+                var q = _context.LabTestOrders.Where(o => o.PatientId == patient.PatientId )
+                    .OrderByDescending(o => o.CreatedAt);
+
+                var total = await q.CountAsync();
+                var items = await q.Skip((page - 1) * limit).Take(limit)
+                    .Select(o => new LabResultDto
+                    {
+                        LabOrderId = o.LabTestOrderId,
+                        OrderCode = o.OrderCode,
+                        CreatedAt = o.CreatedAt,
+                        Status = o.Status ?? "Unknown",
+                        Results = null
+                    }).ToListAsync();
+
+                return ApiResponseHelper.Success(new { Items = items, Total = total, Page = page, PageSize = limit });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listing lab results for user {UserId}", userId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        public async Task<ApiResponse> GetFilesAsync(int userId, string? type, int page, int pageSize)
+        {
+            try
+            {
+                var patient = await _context.Patients.FirstOrDefaultAsync(p => p.UserId == userId && !p.IsDeleted);
+                if (patient == null) return ApiResponseHelper.NotFound("Patient not found");
+
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 1, 100);
+
+                var q = _context.MedFiles.Where(f => f.PatientId == patient.PatientId && !f.IsDeleted);
+
+                if (!string.IsNullOrWhiteSpace(type))
+                    q = q.Where(f => f.ContentType != null && f.ContentType.StartsWith(type));
+
+                var total = await q.CountAsync();
+                var items = await q.OrderByDescending(f => f.UploadedAt)
+                    .Skip((page - 1) * pageSize).Take(pageSize)
+                    .Select(f => new { f.MedFileId, f.MedFileName, f.ContentType, f.UploadedAt })
+                    .ToListAsync();
+
+                return ApiResponseHelper.Success(new { Items = items, Total = total, Page = page, PageSize = pageSize });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listing files for user {UserId}", userId);
+                return ApiResponseHelper.InternalError();
+            }
+        }
+
+        #endregion
+
+        #region Helpers
+
         private async Task LogActivityAsync(int? userId, string action, string entity, string entityId, string details)
         {
             try
@@ -725,5 +1095,7 @@ namespace LifeLink_V2.Services.Implementations
                 _logger.LogError(ex, "Failed to log activity");
             }
         }
+
+        #endregion
     }
 }

@@ -328,13 +328,108 @@ namespace LifeLink_V2.Controllers
             // You could add more sophisticated mapping based on message or error type
             return 400; // Bad Request (default for errors)
         }
+        [HttpPost("request")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RequestAppointment([FromBody] CreateAppointmentDto request)
+        {
+            try
+            {
+                // Allow unauthenticated patients to request; but require valid data
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                    return BadRequest(ApiResponseHelper.ValidationError(errors));
+                }
 
-        #endregion
+                var currentUserId = GetCurrentUserId() ?? 0; // 0 means system/anonymous — service handles validation
+                var result = await _appointmentService.CreateAppointmentAsync(request, currentUserId);
+                return StatusCode(GetStatusCode(result), result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in RequestAppointment");
+                return StatusCode(500, ApiResponseHelper.InternalError());
+            }
+        }
+
+        // POST: api/appointments/{id}/accept
+        [HttpPost("{id}/accept")]
+        [Authorize(Roles = "Provider")]
+        public async Task<IActionResult> AcceptAppointment(int id)
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                if (currentUserId == null) return Unauthorized(ApiResponseHelper.Unauthorized());
+
+                var result = await _appointmentService.AcceptAppointmentAsync(id, currentUserId.Value);
+                return StatusCode(GetStatusCode(result), result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in AcceptAppointment for ID {Id}", id);
+                return StatusCode(500, ApiResponseHelper.InternalError());
+            }
+        }
+
+        // POST: api/appointments/{id}/reject
+        [HttpPost("{id}/reject")]
+        [Authorize(Roles = "Provider")]
+        public async Task<IActionResult> RejectAppointment(int id, [FromBody] CancelAppointmentRequest request)
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                if (currentUserId == null) return Unauthorized(ApiResponseHelper.Unauthorized());
+
+                var result = await _appointment_service_reject(id, currentUserId.Value, request?.Reason);
+                return StatusCode(GetStatusCode(result), result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in RejectAppointment for ID {Id}", id);
+                return StatusCode(500, ApiResponseHelper.InternalError());
+            }
+        }
+
+        // POST: api/appointments/{id}/reschedule
+        [HttpPost("{id}/reschedule")]
+        [Authorize(Roles = "Provider")]
+        public async Task<IActionResult> RescheduleAppointment(int id, [FromBody] RescheduleAppointmentRequest request)
+        {
+            try
+            {
+                if (request == null || request.NewScheduledAt == default)
+                    return BadRequest(ApiResponseHelper.Error("NewScheduledAt and DurationMinutes are required", 400));
+
+                var currentUserId = GetCurrentUserId();
+                if (currentUserId == null) return Unauthorized(ApiResponseHelper.Unauthorized());
+
+                var result = await _appointmentService.RescheduleAppointmentAsync(id, request.NewScheduledAt, request.DurationMinutes, currentUserId.Value);
+                return StatusCode(GetStatusCode(result), result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in RescheduleAppointment for ID {Id}", id);
+                return StatusCode(500, ApiResponseHelper.InternalError());
+            }
+        }
+
+        private async Task<ApiResponse> _appointment_service_reject(int appointmentId, int userId, string? reason)
+            => await _appointmentService.RejectAppointmentAsync(appointmentId, userId, reason);
     }
 
-    // Request Models for Controller
-    public class CancelAppointmentRequest
+   
+    #endregion
+}
+public class RescheduleAppointmentRequest
+{
+    public DateTime NewScheduledAt { get; set; }
+    public int DurationMinutes { get; set; } = 30;
+}
+// Request Models for Controller
+public class CancelAppointmentRequest
     {
         public string? Reason { get; set; }
     }
-}
+

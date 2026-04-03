@@ -5,6 +5,8 @@ namespace LifeLink_V2.Models;
 
 public partial class InsuranceClaim
 {
+    internal DateTime? UpdatedAt;
+
     public int ClaimId { get; set; }
 
     public string ClaimCode { get; set; } = null!;
@@ -27,10 +29,11 @@ public partial class InsuranceClaim
 
     public int? ProcessedBy { get; set; }
 
+    public virtual ICollection<ClaimStatusHistory> ClaimStatusHistories { get; set; } = new List<ClaimStatusHistory>();
+
     public virtual InsuranceCompany InsuranceCompany { get; set; } = null!;
 
     public virtual Patient Patient { get; set; } = null!;
 
     public virtual Payment? RelatedPayment { get; set; }
-    public TimeSpan? UpdatedAt { get; internal set; }
 }

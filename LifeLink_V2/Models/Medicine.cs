@@ -31,5 +31,9 @@ public partial class Medicine
 
     public virtual ICollection<PharmacyOrderItem> PharmacyOrderItems { get; set; } = new List<PharmacyOrderItem>();
 
+    public virtual ICollection<PrescriptionItem> PrescriptionItemMedicines { get; set; } = new List<PrescriptionItem>();
+
+    public virtual ICollection<PrescriptionItem> PrescriptionItemSubstitutedMedicines { get; set; } = new List<PrescriptionItem>();
+
     public virtual Provider Provider { get; set; } = null!;
 }

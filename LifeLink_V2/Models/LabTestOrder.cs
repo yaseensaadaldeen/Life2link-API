@@ -5,6 +5,13 @@ namespace LifeLink_V2.Models;
 
 public partial class LabTestOrder
 {
+    internal bool IsHomeCollection;
+    internal object HomeCollectionAddress;
+    internal object HomeCollectionPhone;
+    internal object DoctorInstructions;
+    internal object Notes;
+    internal int LabTestOrderId;
+
     public int LabOrderId { get; set; }
 
     public string OrderCode { get; set; } = null!;
@@ -31,6 +38,26 @@ public partial class LabTestOrder
 
     public DateTime? UpdatedAt { get; set; }
 
+    public int? CollectedBy { get; set; }
+
+    public DateTime? CollectedAt { get; set; }
+
+    public int? VerifiedBy { get; set; }
+
+    public DateTime? VerifiedAt { get; set; }
+
+    public string? LabNotes { get; set; }
+
+    public bool Urgent { get; set; }
+
+    public string? SampleType { get; set; }
+
+    public DateTime? SampleCollectedAt { get; set; }
+
+    public virtual ICollection<LabOrderItem> LabOrderItems { get; set; } = new List<LabOrderItem>();
+
+    public virtual ICollection<LabOrderStatusHistory> LabOrderStatusHistories { get; set; } = new List<LabOrderStatusHistory>();
+
     public virtual LabTestResult? LabTestResult { get; set; }
 
     public virtual Patient Patient { get; set; } = null!;
@@ -38,12 +65,4 @@ public partial class LabTestOrder
     public virtual Provider Provider { get; set; } = null!;
 
     public virtual LabTest Test { get; set; } = null!;
-
-    // Changed from 'object' and non-public setters to concrete nullable strings with public setters.
-    // EF Core can map these directly as nvarchar columns.
-    public bool IsHomeCollection { get; set; }
-    public string? HomeCollectionAddress { get; set; }
-    public string? HomeCollectionPhone { get; set; }
-    public string? DoctorInstructions { get; set; }
-    public string? Notes { get; set; }
 }

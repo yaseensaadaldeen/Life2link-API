@@ -1048,7 +1048,7 @@ namespace LifeLink_V2.Services.Implementations
                     .GroupBy(o => o.IsDelivery)
                     .Select(g => new
                     {
-                        Type = (g.Key == "true" || g.Key == "True" || g.Key == "1" || g.Key == "yes" || g.Key == "Yes") ? "توصيل" : "استلام",
+                        Type = (g.Key == "true" ) ? "توصيل" : "استلام",
                         Count = g.Count(),
                         Revenue = g.Where(o => o.Status == "Completed").Sum(o => o.TotalSyp),
                         Average = g.Average(o => o.TotalSyp)
@@ -1359,7 +1359,7 @@ namespace LifeLink_V2.Services.Implementations
                         TotalClaimed = g.Sum(c => c.ClaimAmountSyp),
                         TotalApproved = g.Sum(c => c.ApprovedAmountSyp),
                         ApprovalRate = (double)g.Count(c => c.Status == "Approved") / g.Count() * 100,
-                        AverageProcessingTime = g.Average(c => (c.UpdatedAt ?? DateTime.UtcNow - c.SubmittedAt).TotalDays)
+                        AverageProcessingTime = g.Average(c =>((c.UpdatedAt ?? DateTime.UtcNow) - c.SubmittedAt).TotalDays)
                     })
                     .OrderByDescending(x => x.Claims)
                     .Take(10)

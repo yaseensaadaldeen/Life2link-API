@@ -1,11 +1,13 @@
-﻿using System.Text.RegularExpressions;
-using AutoMapper;
+﻿using AutoMapper;
 using LifeLink_V2.Data;
 using LifeLink_V2.DTOs.Auth;
 using LifeLink_V2.Helpers;
 using LifeLink_V2.Models;
 using LifeLink_V2.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace LifeLink_V2.Services.Implementations
 {
@@ -142,6 +144,8 @@ namespace LifeLink_V2.Services.Implementations
                 {
                     _logger.LogWarning(emailEx, "Failed to send welcome email to {Email}", user.Email);
                 }
+
+                await CreateAndSendVerificationCodeAsync(user);
 
                 // Generate JWT token
                 var token = _tokenService.GenerateJwtToken(user);
@@ -327,6 +331,7 @@ namespace LifeLink_V2.Services.Implementations
                 {
                     _logger.LogWarning(notifyEx, "Failed to notify admin about new provider");
                 }
+                await CreateAndSendVerificationCodeAsync(user);
 
                 // Create response (provider accounts don't get immediate token - need approval)
                 response.Success = true;
@@ -385,7 +390,6 @@ namespace LifeLink_V2.Services.Implementations
 
                 if (user == null)
                 {
-                    // Log failed login attempt
                     await LogFailedLoginAttemptAsync(loginDto.Email);
 
                     response.Success = false;
@@ -394,7 +398,6 @@ namespace LifeLink_V2.Services.Implementations
                     return response;
                 }
 
-                // Check if user is active
                 if (!user.IsActive)
                 {
                     response.Success = false;
@@ -405,10 +408,8 @@ namespace LifeLink_V2.Services.Implementations
                     return response;
                 }
 
-                // Verify password
                 if (!PasswordHelper.VerifyPassword(loginDto.Password, user.PasswordHash))
                 {
-                    // Log failed login attempt
                     await LogFailedLoginAttemptAsync(loginDto.Email);
 
                     response.Success = false;
@@ -422,21 +423,37 @@ namespace LifeLink_V2.Services.Implementations
                 await _context.SaveChangesAsync();
 
                 // Log successful login
-                await LogActivityAsync(user.UserId, "Login", "User", user.UserId.ToString(),
-                    $"User logged in successfully");
+                await LogActivityAsync(user.UserId, "Login", "User", user.UserId.ToString(), "User logged in successfully");
 
-                // Generate token with appropriate expiry based on RememberMe
+                // Token expiry
                 var tokenExpiry = loginDto.RememberMe
                     ? DateTime.UtcNow.AddDays(30)
                     : DateTime.UtcNow.AddDays(7);
 
-                var token = _tokenService.GenerateJwtToken(user);
+                // Generate JWT
+                var token = _tokenService.GenerateJwtToken(user, tokenExpiry);
 
-                // Create response
+                // Generate and store refresh token
+                var refreshTokenValue = _tokenService.GenerateRefreshToken();
+                var refreshTokenExpiry = DateTime.UtcNow.AddDays(30);
+
+                var refreshToken = new RefreshToken
+                {
+                    UserId = user.UserId,
+                    Token = refreshTokenValue,
+                    ExpiresAt = refreshTokenExpiry,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _context.RefreshTokens.AddAsync(refreshToken);
+                await _context.SaveChangesAsync();
+
                 response.Success = true;
                 response.Message = "تم تسجيل الدخول بنجاح";
                 response.Token = token;
                 response.TokenExpiry = tokenExpiry;
+                response.RefreshToken = refreshTokenValue;
+                response.RefreshTokenExpiry = refreshTokenExpiry;
                 response.User = new UserInfoDto
                 {
                     UserId = user.UserId,
@@ -450,12 +467,10 @@ namespace LifeLink_V2.Services.Implementations
                     PatientId = user.Patient?.PatientId,
                     ProviderId = user.Provider?.ProviderId,
                     ProviderName = user.Provider?.ProviderName,
-                    //HasProfilePicture = false, // You can implement this later
                     IsActive = user.IsActive
                 };
 
-                _logger.LogInformation("User logged in successfully: {Email} (Role: {Role})",
-                    user.Email, user.Role.RoleName);
+                _logger.LogInformation("User logged in successfully: {Email} (Role: {Role})", user.Email, user.Role.RoleName);
             }
             catch (Exception ex)
             {
@@ -763,6 +778,7 @@ namespace LifeLink_V2.Services.Implementations
             return response;
         }
 
+
         // Helper Methods
         private string GenerateSecureToken()
         {
@@ -803,6 +819,192 @@ namespace LifeLink_V2.Services.Implementations
                    hasLowerCase.IsMatch(password) &&
                    hasDigits.IsMatch(password) &&
                    hasSpecialChars.IsMatch(password);
+        }
+
+        public async Task<AuthResponseDto> RefreshTokenAsync(string token, string refreshTokenValue)
+        {
+            var response = new AuthResponseDto();
+
+            try
+            {
+                // Validate expired JWT and get principal
+                var principal = _tokenService.GetPrincipalFromExpiredToken(token);
+                var userIdClaim = principal.FindFirst("UserId")?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+                {
+                    response.Success = false;
+                    response.Message = "Invalid token";
+                    return response;
+                }
+
+                var storedRefresh = await _context.RefreshTokens
+                    .FirstOrDefaultAsync(r => r.UserId == userId && r.Token == refreshTokenValue && r.RevokedAt == null);
+
+                if (storedRefresh == null || storedRefresh.ExpiresAt <= DateTime.UtcNow)
+                {
+                    response.Success = false;
+                    response.Message = "Refresh token is invalid or expired";
+                    return response;
+                }
+
+                // Get user and ensure active
+                var user = await _context.Users
+                    .Include(u => u.Role)
+                    .Include(u => u.Patient)
+                    .Include(u => u.Provider)
+                    .Include(u => u.City)
+                    .FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive && !u.IsDeleted);
+
+                if (user == null)
+                {
+                    response.Success = false;
+                    response.Message = "User not found or inactive";
+                    return response;
+                }
+
+                // Revoke old refresh token (rotation)
+                storedRefresh.RevokedAt = DateTime.UtcNow;
+
+                // Create new refresh token
+                var newRefreshValue = _tokenService.GenerateRefreshToken();
+                var newRefresh = new RefreshToken
+                {
+                    UserId = user.UserId,
+                    Token = newRefreshValue,
+                    ExpiresAt = DateTime.UtcNow.AddDays(30),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _context.RefreshTokens.AddAsync(newRefresh);
+                await _context.SaveChangesAsync();
+
+                // Generate new JWT
+                var jwtExpiry = DateTime.UtcNow.AddDays(7);
+                var newJwt = _tokenService.GenerateJwtToken(user, jwtExpiry);
+
+                response.Success = true;
+                response.Message = "Tokens refreshed";
+                response.Token = newJwt;
+                response.TokenExpiry = jwtExpiry;
+                response.RefreshToken = newRefreshValue;
+                response.RefreshTokenExpiry = newRefresh.ExpiresAt;
+                response.User = new UserInfoDto
+                {
+                    UserId = user.UserId,
+                    FullName = user.FullName,
+                    Email = user.Email,
+                    Role = user.Role.RoleName,
+                    CityId = user.CityId,
+                    CityName = user.City?.CityName,
+                    PatientId = user.Patient?.PatientId,
+                    ProviderId = user.Provider?.ProviderId,
+                    ProviderName = user.Provider?.ProviderName,
+                    IsActive = user.IsActive
+                };
+
+                // Log rotation
+                await LogActivityAsync(user.UserId, "RefreshToken", "Auth", user.UserId.ToString(), "Refresh token rotated");
+            }
+            catch (SecurityTokenException ste)
+            {
+                _logger.LogWarning(ste, "Invalid token during refresh");
+                response.Success = false;
+                response.Message = "Invalid token";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing token");
+                response.Success = false;
+                response.Message = "حدث خطأ أثناء تجديد الرموز";
+            }
+
+            return response;
+        }
+
+        public async Task<AuthResponseDto> VerifyEmailAsync(string email, string code)
+        {
+            var response = new AuthResponseDto();
+
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower() && !u.IsDeleted);
+                if (user == null)
+                {
+                    response.Success = false;
+                    response.Message = "البريد الإلكتروني غير موجود";
+                    return response;
+                }
+
+                var verification = await _context.EmailVerificationCodes
+                    .Where(e => e.UserId == user.UserId && e.Code == code && !e.IsUsed && e.Expiry >= DateTime.UtcNow)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (verification == null)
+                {
+                    response.Success = false;
+                    response.Message = "رمز التحقق غير صالح أو منتهي الصلاحية";
+                    return response;
+                }
+
+                verification.IsUsed = true;
+                await _context.SaveChangesAsync();
+
+                // For patients, ensure account active; for providers, keep existing approval policy (do not auto-activate providers)
+                if (user.Patient != null && !user.IsActive)
+                {
+                    user.IsActive = true;
+                    user.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+
+                // Log
+                await LogActivityAsync(user.UserId, "VerifyEmail", "User", user.UserId.ToString(), $"Email verified for {email}");
+
+                response.Success = true;
+                response.Message = "تم التحقق من البريد الإلكتروني بنجاح";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verifying email for {Email}", email);
+                response.Success = false;
+                response.Message = "حدث خطأ أثناء التحقق من البريد الإلكتروني";
+            }
+
+            return response;
+        }
+        private async Task CreateAndSendVerificationCodeAsync(User user)
+        {
+            // generate 6-digit numeric code
+            var codeBytes = new byte[4];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(codeBytes);
+            var numeric = Math.Abs(BitConverter.ToInt32(codeBytes, 0)) % 1000000;
+            var code = numeric.ToString("D6");
+
+            var expiry = DateTime.UtcNow.AddHours(24);
+
+            var ev = new EmailVerificationCode
+            {
+                UserId = user.UserId,
+                Code = code,
+                Expiry = expiry,
+                IsUsed = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.EmailVerificationCodes.AddAsync(ev);
+            await _context.SaveChangesAsync();
+
+            // send email (best-effort)
+            try
+            {
+                await _emailService.SendAccountActivationEmailAsync(user.Email, user.FullName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send verification email to {Email}", user.Email);
+            }
         }
 
     }

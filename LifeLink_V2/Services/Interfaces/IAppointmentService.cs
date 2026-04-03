@@ -1,4 +1,5 @@
-﻿using LifeLink_V2.Helpers;
+﻿using LifeLink_V2.DTOs.Provider;
+using LifeLink_V2.Helpers;
 using LifeLink_V2.Models;
 
 namespace LifeLink_V2.Services.Interfaces
@@ -29,6 +30,17 @@ namespace LifeLink_V2.Services.Interfaces
         Task<ApiResponse> UpdateAppointmentAsync(int appointmentId, UpdateAppointmentDto updateDto, int currentUserId);
 
         Task<ApiResponse> AddMedFileToAppointmentAsync(int appointmentId, int medFileId, int currentUserId);
+
+        // New doctor availability management
+        Task<ApiResponse> GetDoctorAvailabilitySlotsAsync(int doctorId, DateTime date);
+        Task<ApiResponse> CreateDoctorAvailabilityAsync(int doctorId, CreateDoctorAvailabilityDto dto, int currentUserId);
+        Task<ApiResponse> UpdateDoctorAvailabilityAsync(int doctorId, int availabilityId, UpdateDoctorAvailabilityDto dto, int currentUserId);
+        Task<ApiResponse> DeleteDoctorAvailabilityAsync(int doctorId, int availabilityId, int currentUserId);
+
+        // Appointment workflow actions
+        Task<ApiResponse> AcceptAppointmentAsync(int appointmentId, int currentUserId);
+        Task<ApiResponse> RejectAppointmentAsync(int appointmentId, int currentUserId, string? reason = null);
+        Task<ApiResponse> RescheduleAppointmentAsync(int appointmentId, DateTime newScheduledAt, int durationMinutes, int currentUserId);
     }
 
     public class CreateAppointmentDto

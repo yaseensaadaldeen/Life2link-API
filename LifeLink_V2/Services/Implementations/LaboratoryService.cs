@@ -1049,7 +1049,7 @@ namespace LifeLink_V2.Services.Implementations
                     Interpretations = resultDto.Interpretations,
                     FullReportMedFileId = resultDto.FullReportMedFileId,
                     TechnicianNotes = resultDto.TechnicianNotes,
-                    VerifiedBy = resultDto.VerifiedBy,
+                    VerifiedBy = int.Parse( resultDto.VerifiedBy),
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -1156,7 +1156,7 @@ namespace LifeLink_V2.Services.Implementations
                     labResult.TechnicianNotes = resultDto.TechnicianNotes;
 
                 if (!string.IsNullOrEmpty(resultDto.VerifiedBy))
-                    labResult.VerifiedBy = resultDto.VerifiedBy;
+                    labResult.VerifiedBy = int.Parse(resultDto.VerifiedBy);
 
                 await _context.SaveChangesAsync();
 

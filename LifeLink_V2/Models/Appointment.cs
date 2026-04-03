@@ -47,16 +47,37 @@ public partial class Appointment
 
     public int? DeletedBy { get; set; }
 
+    public string? RequestStatus { get; set; }
+
+    public string? Notes { get; set; }
+
+    public string? PatientNotes { get; set; }
+
+    public string? DoctorNotes { get; set; }
+
+    public string? PreAppointmentInstructions { get; set; }
+
+    public string? PostAppointmentInstructions { get; set; }
+
+    public string? Diagnosis { get; set; }
+
+    public string? Treatment { get; set; }
+
     public virtual ICollection<AppointmentMedFile> AppointmentMedFiles { get; set; } = new List<AppointmentMedFile>();
+
+    public virtual ICollection<AppointmentStatusHistory> AppointmentStatusHistories { get; set; } = new List<AppointmentStatusHistory>();
 
     public virtual ProviderDoctor? Doctor { get; set; }
 
+    public virtual ICollection<MedFile> MedFiles { get; set; } = new List<MedFile>();
+
     public virtual Patient Patient { get; set; } = null!;
+
+    public virtual ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
 
     public virtual Provider Provider { get; set; } = null!;
 
     public virtual MedicalSpecialty? Specialty { get; set; }
 
     public virtual AppointmentStatus Status { get; set; } = null!;
-    public string Notes { get; internal set; }
 }

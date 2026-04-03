@@ -33,6 +33,16 @@ public partial class ProviderDoctor
 
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 
+    public virtual ICollection<DoctorAvailability> DoctorAvailabilities { get; set; } = new List<DoctorAvailability>();
+
+    public virtual ICollection<DoctorBlockedSlot> DoctorBlockedSlots { get; set; } = new List<DoctorBlockedSlot>();
+
+    public virtual ICollection<DoctorHoliday> DoctorHolidays { get; set; } = new List<DoctorHoliday>();
+
+    public virtual ICollection<HealthRecord> HealthRecords { get; set; } = new List<HealthRecord>();
+
+    public virtual ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+
     public virtual Provider Provider { get; set; } = null!;
 
     public virtual MedicalSpecialty? Specialty { get; set; }

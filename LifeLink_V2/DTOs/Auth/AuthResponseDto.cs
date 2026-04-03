@@ -6,6 +6,11 @@
         public string Message { get; set; } = string.Empty;
         public string? Token { get; set; }
         public DateTime? TokenExpiry { get; set; }
+
+        // Added: refresh token info
+        public string? RefreshToken { get; set; }
+        public DateTime? RefreshTokenExpiry { get; set; }
+
         public UserInfoDto? User { get; set; }
         public List<string> Errors { get; set; } = new();
     }

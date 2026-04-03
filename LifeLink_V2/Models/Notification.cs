@@ -21,6 +21,17 @@ public partial class Notification
 
     public DateTime? SentAt { get; set; }
 
+    public string? NotificationType { get; set; }
+
+    public string? Message { get; set; }
+
+    public int? Priority { get; set; }
+
+    public string? ActionUrl { get; set; }
+
+    public string? Metadata { get; set; }
+
+    public DateTime? ExpiresAt { get; set; }
+
     public virtual User? User { get; set; }
-    public string Message { get; internal set; }
 }

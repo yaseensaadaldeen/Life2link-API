@@ -15,5 +15,9 @@ public partial class AppointmentStatus
 
     public DateTime CreatedAt { get; set; }
 
+    public virtual ICollection<AppointmentStatusHistory> AppointmentStatusHistoryNewStatuses { get; set; } = new List<AppointmentStatusHistory>();
+
+    public virtual ICollection<AppointmentStatusHistory> AppointmentStatusHistoryOldStatuses { get; set; } = new List<AppointmentStatusHistory>();
+
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }

@@ -290,7 +290,48 @@ namespace LifeLink_V2.Controllers
                 Message = "تم تسجيل الخروج بنجاح"
             });
         }
+
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<AuthResponseDto>> RefreshToken([FromBody] RefreshTokenRequestDto request)
+        {
+            if (request == null || string.IsNullOrEmpty(request.Token) || string.IsNullOrEmpty(request.RefreshToken))
+            {
+                return BadRequest(new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid request"
+                });
+            }
+
+            var result = await _authService.RefreshTokenAsync(request.Token!, request.RefreshToken!);
+
+            if (!result.Success)
+                return Unauthorized(result);
+
+            return Ok(result);
+        }
+        [HttpPost("verify-email")]
+        public async Task<ActionResult<AuthResponseDto>> VerifyEmail([FromBody] VerifyEmailDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new AuthResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid request",
+                    Errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList()
+                });
+            }
+
+            var result = await _authService.VerifyEmailAsync(request.Email, request.Code);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
     }
+}
 
     public class CheckEmailDto
     {
@@ -335,4 +376,4 @@ namespace LifeLink_V2.Controllers
     }
 
   
-}
+

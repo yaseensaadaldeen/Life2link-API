@@ -45,9 +45,37 @@ public partial class Provider
 
     public int? DeletedBy { get; set; }
 
+    public string? Description { get; set; }
+
+    public decimal? Latitude { get; set; }
+
+    public decimal? Longitude { get; set; }
+
+    public TimeOnly? OpeningTime { get; set; }
+
+    public TimeOnly? ClosingTime { get; set; }
+
+    public string? WeekendDays { get; set; }
+
+    public decimal? ConsultationFee { get; set; }
+
+    public decimal? AverageRating { get; set; }
+
+    public int? TotalReviews { get; set; }
+
+    public bool IsVerified { get; set; }
+
+    public string? ServicesOffered { get; set; }
+
+    public string? Facilities { get; set; }
+
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 
     public virtual City? City { get; set; }
+
+    public virtual ICollection<ClinicSpecialty> ClinicSpecialties { get; set; } = new List<ClinicSpecialty>();
+
+    public virtual ICollection<ClinicWorkingHour> ClinicWorkingHours { get; set; } = new List<ClinicWorkingHour>();
 
     public virtual ICollection<LabTestOrder> LabTestOrders { get; set; } = new List<LabTestOrder>();
 
@@ -59,10 +87,13 @@ public partial class Provider
 
     public virtual ICollection<PharmacyOrder> PharmacyOrders { get; set; } = new List<PharmacyOrder>();
 
+    public virtual ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+
     public virtual ICollection<ProviderDoctor> ProviderDoctors { get; set; } = new List<ProviderDoctor>();
 
     public virtual ProviderType ProviderType { get; set; } = null!;
 
+    public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+
     public virtual User User { get; set; } = null!;
-    public string Description { get; internal set; }
 }

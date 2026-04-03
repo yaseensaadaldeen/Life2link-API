@@ -16,5 +16,9 @@ namespace LifeLink_V2.Services.Interfaces
         Task<AuthResponseDto> ForgotPasswordAsync(string email);
         Task<AuthResponseDto> ResetPasswordAsync(string token, string newPassword);
         Task<AuthResponseDto> ChangePasswordAsync(int userId, string currentPassword, string newPassword);
+
+        // Refresh + verification
+        Task<AuthResponseDto> RefreshTokenAsync(string token, string refreshToken);
+        Task<AuthResponseDto> VerifyEmailAsync(string email, string code);
     }
 }

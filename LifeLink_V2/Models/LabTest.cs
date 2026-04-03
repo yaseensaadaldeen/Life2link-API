@@ -5,6 +5,10 @@ namespace LifeLink_V2.Models;
 
 public partial class LabTest
 {
+    internal object PreparationInstructions;
+    internal object SampleType;
+    internal object TurnaroundTime;
+
     public int LabTestId { get; set; }
 
     public int ProviderId { get; set; }
@@ -29,10 +33,9 @@ public partial class LabTest
 
     public virtual LabTestCategory? Category { get; set; }
 
+    public virtual ICollection<LabOrderItem> LabOrderItems { get; set; } = new List<LabOrderItem>();
+
     public virtual ICollection<LabTestOrder> LabTestOrders { get; set; } = new List<LabTestOrder>();
 
     public virtual Provider Provider { get; set; } = null!;
-    public string? PreparationInstructions { get; internal set; }
-    public string? TurnaroundTime { get; internal set; }
-    public string? SampleType { get; internal set; }
 }

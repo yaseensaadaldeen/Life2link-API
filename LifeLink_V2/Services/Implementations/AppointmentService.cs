@@ -1,8 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
-using LifeLink_V2.Data;
-using LifeLink_V2.Models;
+﻿using LifeLink_V2.Data;
+using LifeLink_V2.DTOs.Provider;
 using LifeLink_V2.Helpers;
+using LifeLink_V2.Models;
 using LifeLink_V2.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace LifeLink_V2.Services.Implementations
@@ -11,6 +12,7 @@ namespace LifeLink_V2.Services.Implementations
     {
         private readonly AppDbContext _context;
         private readonly ILogger<AppointmentService> _logger;
+        private ILogger<PatientService> logger;
 
         public AppointmentService(AppDbContext context, ILogger<AppointmentService> logger)
         {
@@ -173,7 +175,7 @@ namespace LifeLink_V2.Services.Implementations
                     appointment.ExchangeRate,
                     appointment.IsPaid,
                     appointment.BookingSource,
-                    appointment.Notes,
+                    //appointment.Notes,
                     appointment.CancelReason,
                     appointment.CreatedAt,
                     appointment.UpdatedAt,
@@ -278,7 +280,7 @@ namespace LifeLink_V2.Services.Implementations
                     ExchangeRate = exchangeRate,
                     IsPaid = false,
                     BookingSource = appointmentDto.BookingSource ?? "Mobile",
-                    Notes = appointmentDto.Notes,
+                    //Notes = appointmentDto.Notes,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -290,7 +292,7 @@ namespace LifeLink_V2.Services.Implementations
                 {
                     UserId = patient.UserId,
                     Title = "تم حجز موعد جديد",
-                    Message = $"تم حجز موعد لك في {provider.ProviderName} بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
+                 //   Message = $"تم حجز موعد لك في {provider.ProviderName} بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
                     Channel = "InApp",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -305,7 +307,7 @@ namespace LifeLink_V2.Services.Implementations
                     {
                         UserId = providerUser.UserId,
                         Title = "موعد جديد",
-                        Message = $"تم حجز موعد جديد مع المريض {patient.User.FullName} بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
+                       // Message = $"تم حجز موعد جديد مع المريض {patient.User.FullName} بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
                         Channel = "InApp",
                         CreatedAt = DateTime.UtcNow
                     };
@@ -384,7 +386,7 @@ namespace LifeLink_V2.Services.Implementations
                 {
                     UserId = appointment.Patient.UserId,
                     Title = $"تغيير حالة الموعد",
-                    Message = $"تم تغيير حالة موعدك في {appointment.Provider.ProviderName} من {oldStatusName} إلى {status.StatusName}",
+                    //Message = $"تم تغيير حالة موعدك في {appointment.Provider.ProviderName} من {oldStatusName} إلى {status.StatusName}",
                     Channel = "InApp",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -463,8 +465,8 @@ namespace LifeLink_V2.Services.Implementations
                 {
                     UserId = appointment.Patient.UserId,
                     Title = "تم إلغاء الموعد",
-                    Message = $"تم إلغاء موعدك في {appointment.Provider.ProviderName} بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}" +
-                             (reason != null ? $"\nالسبب: {reason}" : ""),
+                   // Message = $"تم إلغاء موعدك في {appointment.Provider.ProviderName} بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}" +
+                         //    (reason != null ? $"\nالسبب: {reason}" : ""),
                     Channel = "InApp",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -533,7 +535,7 @@ namespace LifeLink_V2.Services.Implementations
                 {
                     UserId = appointment.Patient.UserId,
                     Title = "تم إكمال الموعد",
-                    Message = $"تم إكمال موعدك بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
+                   // Message = $"تم إكمال موعدك بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
                     Channel = "InApp",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -723,7 +725,7 @@ namespace LifeLink_V2.Services.Implementations
                     appointment.DurationMinutes = updateDto.DurationMinutes.Value;
 
                 if (!string.IsNullOrEmpty(updateDto.Notes))
-                    appointment.Notes = updateDto.Notes;
+                   // appointment.Notes = updateDto.Notes;
 
                 if (!string.IsNullOrEmpty(updateDto.CancelReason))
                     appointment.CancelReason = updateDto.CancelReason;
@@ -878,6 +880,425 @@ namespace LifeLink_V2.Services.Implementations
                    transitions[currentStatusId].Contains(newStatusId);
         }
 
+        // ----- Added: centralized activity logger -----
+        private async Task LogActivityAsync(int? userId, string action, string entity, string entityId, string details)
+        {
+            try
+            {
+                var activityLog = new ActivityLog
+                {
+                    UserId = userId,
+                    Action = action,
+                    Entity = entity,
+                    EntityId = entityId,
+                    Details = details,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _context.ActivityLogs.AddAsync(activityLog);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to log activity: {Action} {Entity} {EntityId}", action, entity, entityId);
+            }
+        }
+
         #endregion
+
+        // Explicit interface implementations to ensure IAppointmentService is fully satisfied
+        Task<ApiResponse> IAppointmentService.GetDoctorAvailabilitySlotsAsync(int doctorId, DateTime date)
+            => GetDoctorAvailabilitySlotsAsync(doctorId, date);
+
+        Task<ApiResponse> IAppointmentService.CreateDoctorAvailabilityAsync(int doctorId, CreateDoctorAvailabilityDto dto, int currentUserId)
+            => CreateDoctorAvailabilityAsync(doctorId, dto, currentUserId);
+
+        Task<ApiResponse> IAppointmentService.UpdateDoctorAvailabilityAsync(int doctorId, int availabilityId, UpdateDoctorAvailabilityDto dto, int currentUserId)
+            => UpdateDoctorAvailabilityAsync(doctorId, availabilityId, dto, currentUserId);
+
+        Task<ApiResponse> IAppointmentService.DeleteDoctorAvailabilityAsync(int doctorId, int availabilityId, int currentUserId)
+            => DeleteDoctorAvailabilityAsync(doctorId, availabilityId, currentUserId);
+
+        Task<ApiResponse> IAppointmentService.AcceptAppointmentAsync(int appointmentId, int currentUserId)
+            => AcceptAppointmentAsync(appointmentId, currentUserId);
+
+        Task<ApiResponse> IAppointmentService.RejectAppointmentAsync(int appointmentId, int currentUserId, string? reason)
+            => RejectAppointmentAsync(appointmentId, currentUserId, reason);
+
+        Task<ApiResponse> IAppointmentService.RescheduleAppointmentAsync(int appointmentId, DateTime newScheduledAt, int durationMinutes, int currentUserId)
+            => RescheduleAppointmentAsync(appointmentId, newScheduledAt, durationMinutes, currentUserId);
+        public async Task<ApiResponse> GetDoctorAvailabilitySlotsAsync(int doctorId, DateTime date)
+        {
+            try
+            {
+                var doctor = await _context.ProviderDoctors
+                    .Include(d => d.DoctorAvailabilities)
+                    .FirstOrDefaultAsync(d => d.DoctorId == doctorId && d.IsActive);
+
+                if (doctor == null)
+                    return ApiResponseHelper.NotFound("الطبيب غير موجود");
+
+                var dayOfWeek = (int)date.DayOfWeek; // 0..6
+
+                var availabilities = doctor.DoctorAvailabilities
+                    .Where(a => a.DayOfWeek == dayOfWeek && a.IsActive)
+                    .ToList();
+
+                var startOfDay = date.Date;
+                var endOfDay = date.Date.AddDays(1).AddTicks(-1);
+
+                var existingAppointments = await _context.Appointments
+                    .Where(a => a.DoctorId == doctorId && a.StatusId != GetCancelledStatusId() &&
+                                a.ScheduledAt >= startOfDay && a.ScheduledAt <= endOfDay)
+                    .Select(a => new { a.ScheduledAt, a.DurationMinutes })
+                    .ToListAsync();
+
+                var slots = new List<DoctorAvailabilitySlotDto>();
+
+                foreach (var av in availabilities)
+                {
+                    var slotDuration = av.SlotDurationMinutes > 0 ? av.SlotDurationMinutes : 30;
+                    var current = startOfDay.Add(av.StartTime.ToTimeSpan());
+                    var availEnd = startOfDay.Add(av.EndTime.ToTimeSpan());
+
+                    while (current.AddMinutes(slotDuration) <= availEnd)
+                    {
+                        var slotStart = current;
+                        var slotEnd = current.AddMinutes(slotDuration);
+
+                        var conflict = existingAppointments.Any(a =>
+                        {
+                            var aStart = a.ScheduledAt;
+                            var aEnd = a.ScheduledAt.AddMinutes(a.DurationMinutes);
+                            return slotStart < aEnd && slotEnd > aStart;
+                        });
+
+                        slots.Add(new DoctorAvailabilitySlotDto
+                        {
+                            Start = slotStart,
+                            End = slotEnd,
+                            IsAvailable = !conflict
+                        });
+
+                        current = current.AddMinutes(slotDuration);
+                    }
+                }
+
+                return ApiResponseHelper.Success(new
+                {
+                    DoctorId = doctorId,
+                    DoctorName = doctor.FullName,
+                    Date = date.Date,
+                    Slots = slots.OrderBy(s => s.Start).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building availability for doctor {DoctorId}", doctorId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء جلب التوافر");
+            }
+        }
+
+        public async Task<ApiResponse> CreateDoctorAvailabilityAsync(int doctorId, CreateDoctorAvailabilityDto dto, int currentUserId)
+        {
+            try
+            {
+                var doctor = await _context.ProviderDoctors.FirstOrDefaultAsync(d => d.DoctorId == doctorId);
+                if (doctor == null) return ApiResponseHelper.NotFound("الطبيب غير موجود");
+
+                // Permission: provider owner or admin
+                var provider = await _context.Providers.FirstOrDefaultAsync(p => p.ProviderId == doctor.ProviderId);
+                var currentProvider = await _context.Providers.FirstOrDefaultAsync(p => p.UserId == currentUserId);
+                var isAdmin = await _context.Users.Include(u => u.Role).AnyAsync(u => u.UserId == currentUserId && u.Role.RoleName == "Admin");
+
+                if (!isAdmin && currentProvider?.ProviderId != provider.ProviderId)
+                    return ApiResponseHelper.Error("غير مصرح بإدارة جداول الطبيب", 403);
+
+                var availability = new DoctorAvailability
+                {
+                    DoctorId = doctorId,
+                    DayOfWeek = dto.DayOfWeek,
+                    StartTime = dto.StartTime,
+                    EndTime = dto.EndTime,
+                    SlotDurationMinutes = dto.SlotDurationMinutes,
+                    IsActive = dto.IsActive,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _context.DoctorAvailabilities.AddAsync(availability);
+                await _context.SaveChangesAsync();
+
+                await LogActivityAsync(currentUserId, "Create Doctor Availability", "DoctorAvailability", availability.AvailabilityId.ToString(),
+                    $"Created availability for doctor {doctorId}");
+
+                return ApiResponseHelper.Success(new { availability.AvailabilityId }, "تم إنشاء جدول التوافر بنجاح");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating availability for doctor {DoctorId}", doctorId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء إنشاء جدول التوافر");
+            }
+        }
+
+        public async Task<ApiResponse> UpdateDoctorAvailabilityAsync(int doctorId, int availabilityId, UpdateDoctorAvailabilityDto dto, int currentUserId)
+        {
+            try
+            {
+                var availability = await _context.DoctorAvailabilities.FirstOrDefaultAsync(a => a.AvailabilityId == availabilityId && a.DoctorId == doctorId);
+                if (availability == null) return ApiResponseHelper.NotFound("جدول التوافر غير موجود");
+
+                // Permission check same as create
+                var doctor = await _context.ProviderDoctors.FirstOrDefaultAsync(d => d.DoctorId == doctorId);
+                var currentProvider = await _context.Providers.FirstOrDefaultAsync(p => p.UserId == currentUserId);
+                var isAdmin = await _context.Users.Include(u => u.Role).AnyAsync(u => u.UserId == currentUserId && u.Role.RoleName == "Admin");
+
+                if (!isAdmin && currentProvider?.ProviderId != doctor.ProviderId)
+                    return ApiResponseHelper.Error("غير مصرح بتعديل جدول الطبيب", 403);
+
+                if (dto.StartTime.HasValue) availability.StartTime = dto.StartTime.Value;
+                if (dto.EndTime.HasValue) availability.EndTime = dto.EndTime.Value;
+                if (dto.SlotDurationMinutes.HasValue) availability.SlotDurationMinutes = dto.SlotDurationMinutes.Value;
+                if (dto.IsActive.HasValue) availability.IsActive = dto.IsActive.Value;
+
+                //availability.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                await LogActivityAsync(currentUserId, "Update Doctor Availability", "DoctorAvailability", availabilityId.ToString(),
+                    $"Updated availability {availabilityId} for doctor {doctorId}");
+
+                return ApiResponseHelper.Success(new { availability.AvailabilityId }, "تم تحديث جدول التوافر بنجاح");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating availability {AvailabilityId} for doctor {DoctorId}", availabilityId, doctorId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء تحديث جدول التوافر");
+            }
+        }
+
+        public async Task<ApiResponse> DeleteDoctorAvailabilityAsync(int doctorId, int availabilityId, int currentUserId)
+        {
+            try
+            {
+                var availability = await _context.DoctorAvailabilities.FirstOrDefaultAsync(a => a.AvailabilityId == availabilityId && a.DoctorId == doctorId);
+                if (availability == null) return ApiResponseHelper.NotFound("جدول التوافر غير موجود");
+
+                var doctor = await _context.ProviderDoctors.FirstOrDefaultAsync(d => d.DoctorId == doctorId);
+                var currentProvider = await _context.Providers.FirstOrDefaultAsync(p => p.UserId == currentUserId);
+                var isAdmin = await _context.Users.Include(u => u.Role).AnyAsync(u => u.UserId == currentUserId && u.Role.RoleName == "Admin");
+
+                if (!isAdmin && currentProvider?.ProviderId != doctor.ProviderId)
+                    return ApiResponseHelper.Error("غير مصرح بحذف جدول الطبيب", 403);
+
+                _context.DoctorAvailabilities.Remove(availability);
+                await _context.SaveChangesAsync();
+
+                await LogActivityAsync(currentUserId, "Delete Doctor Availability", "DoctorAvailability", availabilityId.ToString(),
+                    $"Deleted availability {availabilityId} for doctor {doctorId}");
+
+                return ApiResponseHelper.Success(null, "تم حذف جدول التوافر بنجاح");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting availability {AvailabilityId} for doctor {DoctorId}", availabilityId, doctorId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء حذف جدول التوافر");
+            }
+        }
+
+        public async Task<ApiResponse> AcceptAppointmentAsync(int appointmentId, int currentUserId)
+        {
+            try
+            {
+                var appointment = await _context.Appointments
+                    .Include(a => a.Provider)
+                    .Include(a => a.Doctor)
+                    .Include(a => a.Status)
+                    .Include(a => a.Patient).ThenInclude(p => p.User)
+                    .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+                if (appointment == null) return ApiResponseHelper.NotFound("الموعد غير موجود");
+
+                if (appointment.StatusId != GetPendingStatusId())
+                    return ApiResponseHelper.Error("يمكن قبول المواعيد المعلقة فقط", 400);
+
+                var currentProvider = await _context.Providers.FirstOrDefaultAsync(p => p.UserId == currentUserId);
+                var isAdmin = await _context.Users.Include(u => u.Role).AnyAsync(u => u.UserId == currentUserId && u.Role.RoleName == "Admin");
+                if (!isAdmin)
+                {
+                    if (currentProvider == null || currentProvider.ProviderId != appointment.ProviderId)
+                        return ApiResponseHelper.Error("غير مصرح بقبول هذا الموعد", 403);
+                }
+
+                if (appointment.DoctorId.HasValue)
+                {
+                    var doctorId = appointment.DoctorId.Value;
+                    var endTime = appointment.ScheduledAt.AddMinutes(appointment.DurationMinutes);
+
+                    var conflict = await _context.Appointments
+                        .Where(a => a.AppointmentId != appointmentId &&
+                                    a.DoctorId == doctorId &&
+                                    a.StatusId == GetConfirmedStatusId() &&
+                                    a.ScheduledAt < endTime &&
+                                    a.ScheduledAt.AddMinutes(a.DurationMinutes) > appointment.ScheduledAt)
+                        .AnyAsync();
+
+                    if (conflict)
+                        return ApiResponseHelper.Error("يوجد تعارض لجدول الطبيب عند قبول الموعد", 400);
+                }
+
+                appointment.StatusId = GetConfirmedStatusId();
+                appointment.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                var notification = new Notification
+                {
+                    UserId = appointment.Patient.UserId,
+                    Title = "تم تأكيد الموعد",
+                    //Message = $"تم تأكيد موعدك بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
+                    Channel = "InApp",
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.Notifications.AddAsync(notification);
+
+                await LogActivityAsync(currentUserId, "Accept Appointment", "Appointment", appointmentId.ToString(), "Appointment accepted by provider/doctor");
+
+                await _context.SaveChangesAsync();
+
+                return ApiResponseHelper.Success(new { appointment.AppointmentId, Status = "Confirmed" }, "تم قبول الموعد بنجاح");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error accepting appointment {AppointmentId}", appointmentId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء قبول الموعد");
+            }
+        }
+
+        public async Task<ApiResponse> RejectAppointmentAsync(int appointmentId, int currentUserId, string? reason = null)
+        {
+            try
+            {
+                var appointment = await _context.Appointments
+                    .Include(a => a.Provider)
+                    .Include(a => a.Status)
+                    .Include(a => a.Patient).ThenInclude(p => p.User)
+                    .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+                if (appointment == null) return ApiResponseHelper.NotFound("الموعد غير موجود");
+
+                if (appointment.StatusId != GetPendingStatusId())
+                    return ApiResponseHelper.Error("يمكن رفض المواعيد المعلقة فقط", 400);
+
+                var currentProvider = await _context.Providers.FirstOrDefaultAsync(p => p.UserId == currentUserId);
+                var isAdmin = await _context.Users.Include(u => u.Role).AnyAsync(u => u.UserId == currentUserId && u.Role.RoleName == "Admin");
+                if (!isAdmin)
+                {
+                    if (currentProvider == null || currentProvider.ProviderId != appointment.ProviderId)
+                        return ApiResponseHelper.Error("غير مصرح برفض هذا الموعد", 403);
+                }
+
+                appointment.StatusId = GetCancelledStatusId();
+                appointment.CancelReason = reason ?? "Rejected by provider/doctor";
+                appointment.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                var notification = new Notification
+                {
+                    UserId = appointment.Patient.UserId,
+                    Title = "تم رفض الموعد",
+                    //Message = $"لقد تم رفض موعدك بتاريخ {appointment.ScheduledAt:yyyy-MM-dd HH:mm}. {reason}",
+                    Channel = "InApp",
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.Notifications.AddAsync(notification);
+
+                await LogActivityAsync(currentUserId, "Reject Appointment", "Appointment", appointmentId.ToString(), $"Appointment rejected. Reason: {reason}");
+
+                await _context.SaveChangesAsync();
+
+                return ApiResponseHelper.Success(new { appointment.AppointmentId, Status = "Rejected" }, "تم رفض الموعد");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error rejecting appointment {AppointmentId}", appointmentId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء رفض الموعد");
+            }
+        }
+
+        public async Task<ApiResponse> RescheduleAppointmentAsync(int appointmentId, DateTime newScheduledAt, int durationMinutes, int currentUserId)
+        {
+            try
+            {
+                var appointment = await _context.Appointments
+                    .Include(a => a.Provider)
+                    .Include(a => a.Doctor)
+                    .Include(a => a.Status)
+                    .Include(a => a.Patient).ThenInclude(p => p.User)
+                    .FirstOrDefaultAsync(a => a.AppointmentId == appointmentId);
+
+                if (appointment == null) return ApiResponseHelper.NotFound("الموعد غير موجود");
+
+                if (appointment.StatusId == GetCompletedStatusId() || appointment.StatusId == GetCancelledStatusId())
+                    return ApiResponseHelper.Error("لا يمكن إعادة جدولة الموعد المكتمل أو الملغي", 400);
+
+                var currentProvider = await _context.Providers.FirstOrDefaultAsync(p => p.UserId == currentUserId);
+                var isAdmin = await _context.Users.Include(u => u.Role).AnyAsync(u => u.UserId == currentUserId && u.Role.RoleName == "Admin");
+                if (!isAdmin)
+                {
+                    if (currentProvider == null || currentProvider.ProviderId != appointment.ProviderId)
+                        return ApiResponseHelper.Error("غير مصرح بإعادة جدولة هذا الموعد", 403);
+                }
+
+                var endTime = newScheduledAt.AddMinutes(durationMinutes);
+                var conflictingAppointment = await _context.Appointments
+                    .Where(a => a.AppointmentId != appointmentId &&
+                                a.ProviderId == appointment.ProviderId &&
+                                a.StatusId != GetCancelledStatusId() &&
+                                a.ScheduledAt < endTime &&
+                                a.ScheduledAt.AddMinutes(a.DurationMinutes) > newScheduledAt &&
+                                (appointment.DoctorId == null || a.DoctorId == appointment.DoctorId))
+                    .FirstOrDefaultAsync();
+
+                if (conflictingAppointment != null)
+                    return ApiResponseHelper.Error("التوقيت الجديد يتعارض مع موعد آخر", 400);
+
+                appointment.ScheduledAt = newScheduledAt;
+                appointment.DurationMinutes = durationMinutes;
+                appointment.UpdatedAt = DateTime.UtcNow;
+
+                if (appointment.StatusId == GetPendingStatusId())
+                    appointment.StatusId = GetPendingStatusId();
+                else
+                    appointment.StatusId = GetConfirmedStatusId();
+
+                await _context.SaveChangesAsync();
+
+                var notification = new Notification
+                {
+                    UserId = appointment.Patient.UserId,
+                    Title = "تم إعادة جدولة الموعد",
+                   // Message = $"تمت إعادة جدولة موعدك إلى {appointment.ScheduledAt:yyyy-MM-dd HH:mm}",
+                    Channel = "InApp",
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.Notifications.AddAsync(notification);
+
+                await LogActivityAsync(currentUserId, "Reschedule Appointment", "Appointment", appointmentId.ToString(), $"Rescheduled to {appointment.ScheduledAt:O}");
+
+                await _context.SaveChangesAsync();
+
+                return ApiResponseHelper.Success(new
+                {
+                    appointment.AppointmentId,
+                    appointment.ScheduledAt,
+                    appointment.DurationMinutes,
+                    Status = GetStatusName(appointment.StatusId)
+                }, "تمت إعادة جدولة الموعد بنجاح");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error rescheduling appointment {AppointmentId}", appointmentId);
+                return ApiResponseHelper.InternalError("حدث خطأ أثناء إعادة جدولة الموعد");
+            }
+        }
     }
 }

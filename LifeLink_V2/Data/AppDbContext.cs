@@ -24,13 +24,35 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<AppointmentStatus> AppointmentStatuses { get; set; }
 
+    public virtual DbSet<AppointmentStatusHistory> AppointmentStatusHistories { get; set; }
+
     public virtual DbSet<City> Cities { get; set; }
 
+    public virtual DbSet<ClaimStatusHistory> ClaimStatusHistories { get; set; }
+
+    public virtual DbSet<ClinicSpecialty> ClinicSpecialties { get; set; }
+
+    public virtual DbSet<ClinicWorkingHour> ClinicWorkingHours { get; set; }
+
+    public virtual DbSet<DoctorAvailability> DoctorAvailabilities { get; set; }
+
+    public virtual DbSet<DoctorBlockedSlot> DoctorBlockedSlots { get; set; }
+
+    public virtual DbSet<DoctorHoliday> DoctorHolidays { get; set; }
+
+    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
+
     public virtual DbSet<Governorate> Governorates { get; set; }
+
+    public virtual DbSet<HealthRecord> HealthRecords { get; set; }
 
     public virtual DbSet<InsuranceClaim> InsuranceClaims { get; set; }
 
     public virtual DbSet<InsuranceCompany> InsuranceCompanies { get; set; }
+
+    public virtual DbSet<LabOrderItem> LabOrderItems { get; set; }
+
+    public virtual DbSet<LabOrderStatusHistory> LabOrderStatusHistories { get; set; }
 
     public virtual DbSet<LabTest> LabTests { get; set; }
 
@@ -42,6 +64,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<MedFile> MedFiles { get; set; }
 
+    public virtual DbSet<MedicalCondition> MedicalConditions { get; set; }
+
     public virtual DbSet<MedicalRecord> MedicalRecords { get; set; }
 
     public virtual DbSet<MedicalRecordMedFile> MedicalRecordMedFiles { get; set; }
@@ -52,7 +76,13 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Notification> Notifications { get; set; }
 
+    public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+
     public virtual DbSet<Patient> Patients { get; set; }
+
+    public virtual DbSet<PatientAllergy> PatientAllergies { get; set; }
+
+    public virtual DbSet<PatientSensitiveDatum> PatientSensitiveData { get; set; }
 
     public virtual DbSet<Payment> Payments { get; set; }
 
@@ -66,11 +96,21 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<PharmacyOrderItem> PharmacyOrderItems { get; set; }
 
+    public virtual DbSet<PharmacyOrderStatusHistory> PharmacyOrderStatusHistories { get; set; }
+
+    public virtual DbSet<Prescription> Prescriptions { get; set; }
+
+    public virtual DbSet<PrescriptionItem> PrescriptionItems { get; set; }
+
     public virtual DbSet<Provider> Providers { get; set; }
 
     public virtual DbSet<ProviderDoctor> ProviderDoctors { get; set; }
 
     public virtual DbSet<ProviderType> ProviderTypes { get; set; }
+
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+
+    public virtual DbSet<Review> Reviews { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -78,44 +118,22 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<SystemSetting> SystemSettings { get; set; }
 
+    public virtual DbSet<Ticket> Tickets { get; set; }
+
     public virtual DbSet<User> Users { get; set; }
+
+    public virtual DbSet<VitalSign> VitalSigns { get; set; }
+
+    public virtual DbSet<VwDoctorAvailability> VwDoctorAvailabilities { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-    {
-        // If options already configured (e.g. via DI in Program.cs), do nothing.
-        if (optionsBuilder.IsConfigured)
-            return;
-
-        // Try to load connection string from configuration sources (appsettings.json, environment variables).
-        try
-        {
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(AppContext.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables()
-                .Build();
-
-            var conn = configuration.GetConnectionString("DefaultConnection");
-            if (!string.IsNullOrWhiteSpace(conn))
-            {
-                optionsBuilder.UseSqlServer(conn);
-            }
-            else
-            {
-                // Fallback: keep the previous hardcoded value if nothing configured (for backwards compatibility)
-                optionsBuilder.UseSqlServer("Server=life2link.com;Database=Life2link;User Id=yaseen;Password=test123;TrustServerCertificate=True;Persist Security Info=True;");
-            }
-        }
-        catch
-        {
-            // If configuration fails for any reason, fall back to the hardcoded connection string.
-            optionsBuilder.UseSqlServer("Server=life2link.com;Database=Life2link;User Id=yaseen;Password=test123;TrustServerCertificate=True;Persist Security Info=True;");
-        }
-    }
+        => optionsBuilder.UseSqlServer("Server=life2link.com;Database=life2link;User Id=yaseen;Password=test123;TrustServerCertificate=True;Persist Security Info=True;");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.UseCollation("Arabic_CI_AS");
+
         modelBuilder.Entity<ActivityLog>(entity =>
         {
             entity.HasKey(e => e.ActivityLogId).HasName("PK__Activity__19A9B7AF803A15ED");
@@ -142,6 +160,10 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.StatusId, "IX_Appointments_Status");
 
+            entity.HasIndex(e => e.AppointmentCode, "UIX_Appointments_Code")
+                .IsUnique()
+                .HasFilter("([IsDeleted]=(0))");
+
             entity.HasIndex(e => e.AppointmentCode, "UQ__Appointm__F67FE26FE9B9B574").IsUnique();
 
             entity.Property(e => e.AppointmentCode).HasMaxLength(50);
@@ -156,6 +178,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.PriceUsd)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("PriceUSD");
+            entity.Property(e => e.RequestStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("Pending");
             entity.Property(e => e.StatusId).HasDefaultValue(1);
 
             entity.HasOne(d => d.Doctor).WithMany(p => p.Appointments)
@@ -209,6 +234,34 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.StatusName).HasMaxLength(50);
         });
 
+        modelBuilder.Entity<AppointmentStatusHistory>(entity =>
+        {
+            entity.HasKey(e => e.StatusHistoryId).HasName("PK__Appointm__DB9734914F72D91E");
+
+            entity.ToTable("AppointmentStatusHistory");
+
+            entity.Property(e => e.ChangeReason).HasMaxLength(1000);
+            entity.Property(e => e.ChangedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.Appointment).WithMany(p => p.AppointmentStatusHistories)
+                .HasForeignKey(d => d.AppointmentId)
+                .HasConstraintName("FK_AppointmentStatusHistory_Appointment");
+
+            entity.HasOne(d => d.ChangedByNavigation).WithMany(p => p.AppointmentStatusHistories)
+                .HasForeignKey(d => d.ChangedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AppointmentStatusHistory_User");
+
+            entity.HasOne(d => d.NewStatus).WithMany(p => p.AppointmentStatusHistoryNewStatuses)
+                .HasForeignKey(d => d.NewStatusId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AppointmentStatusHistory_NewStatus");
+
+            entity.HasOne(d => d.OldStatus).WithMany(p => p.AppointmentStatusHistoryOldStatuses)
+                .HasForeignKey(d => d.OldStatusId)
+                .HasConstraintName("FK_AppointmentStatusHistory_OldStatus");
+        });
+
         modelBuilder.Entity<City>(entity =>
         {
             entity.HasKey(e => e.CityId).HasName("PK__Cities__F2D21B76324F8A62");
@@ -224,6 +277,116 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK_Cities_Governorate");
         });
 
+        modelBuilder.Entity<ClaimStatusHistory>(entity =>
+        {
+            entity.HasKey(e => e.StatusHistoryId).HasName("PK__ClaimSta__DB9734914E18231D");
+
+            entity.ToTable("ClaimStatusHistory");
+
+            entity.Property(e => e.ChangeReason).HasMaxLength(1000);
+            entity.Property(e => e.ChangedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.NewStatus).HasMaxLength(100);
+            entity.Property(e => e.OldStatus).HasMaxLength(100);
+
+            entity.HasOne(d => d.ChangedByNavigation).WithMany(p => p.ClaimStatusHistories)
+                .HasForeignKey(d => d.ChangedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ClaimStatusHistory_User");
+
+            entity.HasOne(d => d.Claim).WithMany(p => p.ClaimStatusHistories)
+                .HasForeignKey(d => d.ClaimId)
+                .HasConstraintName("FK_ClaimStatusHistory_Claim");
+        });
+
+        modelBuilder.Entity<ClinicSpecialty>(entity =>
+        {
+            entity.HasKey(e => e.ClinicSpecialtyId).HasName("PK__ClinicSp__1276BFDB164E428F");
+
+            entity.HasIndex(e => new { e.ProviderId, e.SpecialtyId }, "UQ_ClinicSpecialty").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+
+            entity.HasOne(d => d.Provider).WithMany(p => p.ClinicSpecialties)
+                .HasForeignKey(d => d.ProviderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ClinicSpecialties_Provider");
+
+            entity.HasOne(d => d.Specialty).WithMany(p => p.ClinicSpecialties)
+                .HasForeignKey(d => d.SpecialtyId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ClinicSpecialties_Specialty");
+        });
+
+        modelBuilder.Entity<ClinicWorkingHour>(entity =>
+        {
+            entity.HasKey(e => e.WorkingHourId).HasName("PK__ClinicWo__7B6534CF847123F9");
+
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+
+            entity.HasOne(d => d.Provider).WithMany(p => p.ClinicWorkingHours)
+                .HasForeignKey(d => d.ProviderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ClinicWorkingHours_Provider");
+        });
+
+        modelBuilder.Entity<DoctorAvailability>(entity =>
+        {
+            entity.HasKey(e => e.AvailabilityId).HasName("PK__DoctorAv__DA3979B174B9F43C");
+
+            entity.ToTable("DoctorAvailability");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.SlotDurationMinutes).HasDefaultValue(30);
+
+            entity.HasOne(d => d.Doctor).WithMany(p => p.DoctorAvailabilities)
+                .HasForeignKey(d => d.DoctorId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_DoctorAvailability_Doctor");
+        });
+
+        modelBuilder.Entity<DoctorBlockedSlot>(entity =>
+        {
+            entity.HasKey(e => e.BlockedSlotId).HasName("PK__DoctorBl__3CE5712F5D80189C");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Reason).HasMaxLength(500);
+            entity.Property(e => e.RecurrencePattern).HasMaxLength(100);
+
+            entity.HasOne(d => d.Doctor).WithMany(p => p.DoctorBlockedSlots)
+                .HasForeignKey(d => d.DoctorId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_BlockedSlots_Doctor");
+        });
+
+        modelBuilder.Entity<DoctorHoliday>(entity =>
+        {
+            entity.HasKey(e => e.HolidayId).HasName("PK__DoctorHo__2D35D57A24870210");
+
+            entity.HasIndex(e => new { e.DoctorId, e.HolidayDate }, "UQ_DoctorHoliday").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.HolidayName).HasMaxLength(200);
+
+            entity.HasOne(d => d.Doctor).WithMany(p => p.DoctorHolidays)
+                .HasForeignKey(d => d.DoctorId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Holidays_Doctor");
+        });
+
+        modelBuilder.Entity<EmailVerificationCode>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__EmailVer__3214EC07C8AD2E60");
+
+            entity.Property(e => e.Code).HasMaxLength(10);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.User).WithMany(p => p.EmailVerificationCodes)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_EmailVerification_Users");
+        });
+
         modelBuilder.Entity<Governorate>(entity =>
         {
             entity.HasKey(e => e.GovernorateId).HasName("PK__Governor__D314AD9AA2062F0C");
@@ -234,11 +397,39 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.GovernorateName).HasMaxLength(100);
         });
 
+        modelBuilder.Entity<HealthRecord>(entity =>
+        {
+            entity.HasKey(e => e.HealthRecordId).HasName("PK__HealthRe__3BE0B8BD85F66B0F");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Facility).HasMaxLength(500);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.RecordType).HasMaxLength(100);
+            entity.Property(e => e.Title).HasMaxLength(500);
+            entity.Property(e => e.Unit).HasMaxLength(100);
+            entity.Property(e => e.Value).HasMaxLength(500);
+
+            entity.HasOne(d => d.DocumentFile).WithMany(p => p.HealthRecords)
+                .HasForeignKey(d => d.DocumentFileId)
+                .HasConstraintName("FK_HealthRecords_File");
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.HealthRecords)
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_HealthRecords_Patient");
+
+            entity.HasOne(d => d.PerformedByNavigation).WithMany(p => p.HealthRecords)
+                .HasForeignKey(d => d.PerformedBy)
+                .HasConstraintName("FK_HealthRecords_Doctor");
+        });
+
         modelBuilder.Entity<InsuranceClaim>(entity =>
         {
             entity.HasKey(e => e.ClaimId).HasName("PK__Insuranc__EF2E139B9FA66AA6");
 
             entity.HasIndex(e => e.Status, "IX_InsuranceClaims_Status");
+
+            entity.HasIndex(e => e.ClaimCode, "UIX_InsuranceClaims_Code").IsUnique();
 
             entity.HasIndex(e => e.ClaimCode, "UQ__Insuranc__17537BFC7B749D92").IsUnique();
 
@@ -288,6 +479,57 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.RegistrationNumber).HasMaxLength(100);
         });
 
+        modelBuilder.Entity<LabOrderItem>(entity =>
+        {
+            entity.HasKey(e => e.LabOrderItemId).HasName("PK__LabOrder__9F1023E6C9A15D0B");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.LineTotalSyp)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("LineTotalSYP");
+            entity.Property(e => e.ReferenceRange).HasMaxLength(500);
+            entity.Property(e => e.Status)
+                .HasMaxLength(50)
+                .HasDefaultValue("Pending");
+            entity.Property(e => e.Unit).HasMaxLength(100);
+            entity.Property(e => e.UnitPriceSyp)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("UnitPriceSYP");
+            entity.Property(e => e.UnitPriceUsd)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("UnitPriceUSD");
+
+            entity.HasOne(d => d.LabOrder).WithMany(p => p.LabOrderItems)
+                .HasForeignKey(d => d.LabOrderId)
+                .HasConstraintName("FK_LabOrderItems_Order");
+
+            entity.HasOne(d => d.LabTest).WithMany(p => p.LabOrderItems)
+                .HasForeignKey(d => d.LabTestId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_LabOrderItems_Test");
+        });
+
+        modelBuilder.Entity<LabOrderStatusHistory>(entity =>
+        {
+            entity.HasKey(e => e.StatusHistoryId).HasName("PK__LabOrder__DB97349150E95DAC");
+
+            entity.ToTable("LabOrderStatusHistory");
+
+            entity.Property(e => e.ChangeReason).HasMaxLength(1000);
+            entity.Property(e => e.ChangedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.NewStatus).HasMaxLength(100);
+            entity.Property(e => e.OldStatus).HasMaxLength(100);
+
+            entity.HasOne(d => d.ChangedByNavigation).WithMany(p => p.LabOrderStatusHistories)
+                .HasForeignKey(d => d.ChangedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_LabOrderStatusHistory_User");
+
+            entity.HasOne(d => d.LabOrder).WithMany(p => p.LabOrderStatusHistories)
+                .HasForeignKey(d => d.LabOrderId)
+                .HasConstraintName("FK_LabOrderStatusHistory_Order");
+        });
+
         modelBuilder.Entity<LabTest>(entity =>
         {
             entity.HasKey(e => e.LabTestId).HasName("PK__LabTests__64D33925DE15937E");
@@ -331,6 +573,8 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.PatientId, "IX_LabOrders_Patient");
 
+            entity.HasIndex(e => e.OrderCode, "UIX_LabTestOrders_Code").IsUnique();
+
             entity.HasIndex(e => e.OrderCode, "UQ__LabTestO__999B522931EB0200").IsUnique();
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
@@ -341,6 +585,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.PriceUsd)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("PriceUSD");
+            entity.Property(e => e.SampleType).HasMaxLength(100);
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .HasDefaultValue("Pending");
@@ -367,7 +612,12 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.LabOrderId, "UQ__LabTestR__9CBC017F9C6A2377").IsUnique();
 
+            entity.Property(e => e.AbnormalFlag).HasMaxLength(10);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.ReferenceRange).HasMaxLength(500);
+            entity.Property(e => e.ResultValue).HasMaxLength(500);
+            entity.Property(e => e.TestName).HasMaxLength(400);
+            entity.Property(e => e.Unit).HasMaxLength(100);
 
             entity.HasOne(d => d.FullReportMedFile).WithMany(p => p.LabTestResults)
                 .HasForeignKey(d => d.FullReportMedFileId)
@@ -382,11 +632,47 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => e.MedFileId).HasName("PK__MedFiles__E5ADECDD54C7F433");
 
+            entity.HasIndex(e => e.PatientId, "IX_MedFiles_PatientId");
+
+            entity.HasIndex(e => e.UploadedAt, "IX_MedFiles_UploadedAt");
+
+            entity.Property(e => e.Category).HasMaxLength(100);
             entity.Property(e => e.ContentType).HasMaxLength(100);
+            entity.Property(e => e.FileName).HasMaxLength(500);
+            entity.Property(e => e.FileType).HasMaxLength(100);
             entity.Property(e => e.IsPrivate).HasDefaultValue(true);
             entity.Property(e => e.MedFileName).HasMaxLength(300);
             entity.Property(e => e.MedFilePath).HasMaxLength(500);
             entity.Property(e => e.UploadedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.Appointment).WithMany(p => p.MedFiles)
+                .HasForeignKey(d => d.AppointmentId)
+                .HasConstraintName("FK_MedFiles_Appointment");
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.MedFiles)
+                .HasForeignKey(d => d.PatientId)
+                .HasConstraintName("FK_MedFiles_Patient");
+
+            entity.HasOne(d => d.UploadedByNavigation).WithMany(p => p.MedFiles)
+                .HasForeignKey(d => d.UploadedBy)
+                .HasConstraintName("FK_MedFiles_User");
+        });
+
+        modelBuilder.Entity<MedicalCondition>(entity =>
+        {
+            entity.HasKey(e => e.ConditionId).HasName("PK__MedicalC__37F5C0CF0406E5BC");
+
+            entity.Property(e => e.ConditionName).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Icd10code)
+                .HasMaxLength(20)
+                .HasColumnName("ICD10Code");
+            entity.Property(e => e.Status).HasMaxLength(50);
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.MedicalConditions)
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_MedicalConditions_Patient");
         });
 
         modelBuilder.Entity<MedicalRecord>(entity =>
@@ -394,6 +680,7 @@ public partial class AppDbContext : DbContext
             entity.HasKey(e => e.MedicalRecordId).HasName("PK__MedicalR__4411BA2270373514");
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             entity.Property(e => e.RecordedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Title).HasMaxLength(250);
 
@@ -457,13 +744,29 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.UserId, "IX_Notifications_User");
 
+            entity.Property(e => e.ActionUrl).HasMaxLength(500);
             entity.Property(e => e.Channel).HasMaxLength(50);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.NotificationType).HasMaxLength(50);
+            entity.Property(e => e.Priority).HasDefaultValue(0);
             entity.Property(e => e.Title).HasMaxLength(250);
 
             entity.HasOne(d => d.User).WithMany(p => p.Notifications)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_Notifications_User");
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__Password__3214EC07DC104A47");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Token).HasMaxLength(200);
+
+            entity.HasOne(d => d.User).WithMany(p => p.PasswordResetTokens)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PasswordReset_Users");
         });
 
         modelBuilder.Entity<Patient>(entity =>
@@ -493,6 +796,37 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey<Patient>(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Patients_User");
+        });
+
+        modelBuilder.Entity<PatientAllergy>(entity =>
+        {
+            entity.HasKey(e => e.AllergyId).HasName("PK__PatientA__A49EBE420B94BACA");
+
+            entity.Property(e => e.Allergen).HasMaxLength(500);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Severity).HasMaxLength(50);
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.PatientAllergies)
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PatientAllergies_Patient");
+        });
+
+        modelBuilder.Entity<PatientSensitiveDatum>(entity =>
+        {
+            entity.HasKey(e => e.PatientId).HasName("PK__PatientS__970EC36661B35976");
+
+            entity.Property(e => e.PatientId).ValueGeneratedNever();
+            entity.Property(e => e.EmergencyContactEncrypted).HasMaxLength(256);
+            entity.Property(e => e.EmergencyPhoneEncrypted).HasMaxLength(256);
+            entity.Property(e => e.InsuranceNumberEncrypted).HasMaxLength(256);
+            entity.Property(e => e.NationalIdEncrypted).HasMaxLength(256);
+
+            entity.HasOne(d => d.Patient).WithOne(p => p.PatientSensitiveDatum)
+                .HasForeignKey<PatientSensitiveDatum>(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PatientSensitiveData_Patient");
         });
 
         modelBuilder.Entity<Payment>(entity =>
@@ -580,8 +914,13 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.PatientId, "IX_PharmacyOrders_Patient");
 
+            entity.HasIndex(e => e.OrderCode, "UIX_PharmacyOrders_Code")
+                .IsUnique()
+                .HasFilter("([IsDeleted]=(0))");
+
             entity.HasIndex(e => e.OrderCode, "UQ__Pharmacy__999B5229D0A9E77E").IsUnique();
 
+            entity.Property(e => e.CancellationReason).HasMaxLength(1000);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.OrderCode).HasMaxLength(50);
             entity.Property(e => e.Status)
@@ -609,6 +948,7 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => e.PharmacyOrderItemId).HasName("PK__Pharmacy__867E7527986658A6");
 
+            entity.Property(e => e.BatchNumber).HasMaxLength(100);
             entity.Property(e => e.LineTotalSyp)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("LineTotalSYP");
@@ -629,6 +969,104 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK_PharmacyOrderItems_Order");
         });
 
+        modelBuilder.Entity<PharmacyOrderStatusHistory>(entity =>
+        {
+            entity.HasKey(e => e.StatusHistoryId).HasName("PK__Pharmacy__DB973491212F79DF");
+
+            entity.ToTable("PharmacyOrderStatusHistory");
+
+            entity.Property(e => e.ChangeReason).HasMaxLength(1000);
+            entity.Property(e => e.ChangedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.NewStatus).HasMaxLength(100);
+            entity.Property(e => e.OldStatus).HasMaxLength(100);
+
+            entity.HasOne(d => d.ChangedByNavigation).WithMany(p => p.PharmacyOrderStatusHistories)
+                .HasForeignKey(d => d.ChangedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PharmacyOrderStatusHistory_User");
+
+            entity.HasOne(d => d.PharmacyOrder).WithMany(p => p.PharmacyOrderStatusHistories)
+                .HasForeignKey(d => d.PharmacyOrderId)
+                .HasConstraintName("FK_PharmacyOrderStatusHistory_Order");
+        });
+
+        modelBuilder.Entity<Prescription>(entity =>
+        {
+            entity.HasKey(e => e.PrescriptionId).HasName("PK__Prescrip__401308329BFC0019");
+
+            entity.HasIndex(e => e.PrescriptionCode, "UIX_Prescriptions_Code")
+                .IsUnique()
+                .HasFilter("([IsDeleted]=(0))");
+
+            entity.HasIndex(e => e.PrescriptionNumber, "UIX_Prescriptions_Number")
+                .IsUnique()
+                .HasFilter("([PrescriptionNumber] IS NOT NULL)");
+
+            entity.HasIndex(e => e.PrescriptionCode, "UQ__Prescrip__4234E9E0D7C6D641").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.IssueDate).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.PrescriptionCode).HasMaxLength(100);
+            entity.Property(e => e.PrescriptionNumber).HasMaxLength(100);
+            entity.Property(e => e.RefillsAllowed).HasDefaultValue(0);
+            entity.Property(e => e.RefillsRemaining).HasDefaultValue(0);
+            entity.Property(e => e.Status)
+                .HasMaxLength(50)
+                .HasDefaultValue("Active");
+
+            entity.HasOne(d => d.Appointment).WithMany(p => p.Prescriptions)
+                .HasForeignKey(d => d.AppointmentId)
+                .HasConstraintName("FK_Prescriptions_Appointment");
+
+            entity.HasOne(d => d.Doctor).WithMany(p => p.Prescriptions)
+                .HasForeignKey(d => d.DoctorId)
+                .HasConstraintName("FK_Prescriptions_ProviderDoctor");
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.Prescriptions)
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Prescriptions_Patient");
+
+            entity.HasOne(d => d.Provider).WithMany(p => p.Prescriptions)
+                .HasForeignKey(d => d.ProviderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Prescriptions_Provider");
+        });
+
+        modelBuilder.Entity<PrescriptionItem>(entity =>
+        {
+            entity.HasKey(e => e.PrescriptionItemId).HasName("PK__Prescrip__1AADD9FA6E8E569D");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Dosage).HasMaxLength(200);
+            entity.Property(e => e.DurationUnit)
+                .HasMaxLength(20)
+                .HasDefaultValue("Days");
+            entity.Property(e => e.Frequency).HasMaxLength(200);
+            entity.Property(e => e.LineTotalSyp)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("LineTotalSYP");
+            entity.Property(e => e.UnitPriceSyp)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("UnitPriceSYP");
+            entity.Property(e => e.UnitPriceUsd)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("UnitPriceUSD");
+
+            entity.HasOne(d => d.Medicine).WithMany(p => p.PrescriptionItemMedicines)
+                .HasForeignKey(d => d.MedicineId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PrescriptionItems_Medicine");
+
+            entity.HasOne(d => d.Prescription).WithMany(p => p.PrescriptionItems)
+                .HasForeignKey(d => d.PrescriptionId)
+                .HasConstraintName("FK_PrescriptionItems_Prescription");
+
+            entity.HasOne(d => d.SubstitutedMedicine).WithMany(p => p.PrescriptionItemSubstitutedMedicines)
+                .HasForeignKey(d => d.SubstitutedMedicineId)
+                .HasConstraintName("FK_PrescriptionItems_SubstitutedMedicine");
+        });
+
         modelBuilder.Entity<Provider>(entity =>
         {
             entity.HasKey(e => e.ProviderId).HasName("PK__Provider__B54C687DCF0E6DF7");
@@ -640,15 +1078,22 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.UserId, "UQ__Provider__1788CC4D35414150").IsUnique();
 
             entity.Property(e => e.Address).HasMaxLength(300);
+            entity.Property(e => e.AverageRating).HasColumnType("decimal(3, 2)");
+            entity.Property(e => e.ConsultationFee).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Description).HasMaxLength(300);
             entity.Property(e => e.Email).HasMaxLength(150);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Latitude).HasColumnType("decimal(10, 8)");
             entity.Property(e => e.LicenseIssuedBy).HasMaxLength(250);
+            entity.Property(e => e.Longitude).HasColumnType("decimal(11, 8)");
             entity.Property(e => e.MedicalLicenseNumber).HasMaxLength(150);
             entity.Property(e => e.Phone).HasMaxLength(30);
             entity.Property(e => e.ProviderName).HasMaxLength(250);
             entity.Property(e => e.Rating).HasColumnType("decimal(4, 2)");
             entity.Property(e => e.TotalAppointments).HasDefaultValue(0);
+            entity.Property(e => e.TotalReviews).HasDefaultValue(0);
+            entity.Property(e => e.WeekendDays).HasMaxLength(100);
 
             entity.HasOne(d => d.City).WithMany(p => p.Providers)
                 .HasForeignKey(d => d.CityId)
@@ -699,6 +1144,40 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ProviderTypeName).HasMaxLength(100);
         });
 
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.TokenId).HasName("PK__RefreshT__658FEEEAA8D09563");
+
+            entity.HasIndex(e => e.Token, "UIX_RefreshTokens_Token").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Token).HasMaxLength(500);
+            entity.Property(e => e.TokenHash).HasMaxLength(64);
+
+            entity.HasOne(d => d.User).WithMany(p => p.RefreshTokens)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_RefreshTokens_Users");
+        });
+
+        modelBuilder.Entity<Review>(entity =>
+        {
+            entity.HasKey(e => e.ReviewId).HasName("PK__Reviews__74BC79CE6BED8444");
+
+            entity.Property(e => e.Comment).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.Reviews)
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Reviews_Patient");
+
+            entity.HasOne(d => d.Provider).WithMany(p => p.Reviews)
+                .HasForeignKey(d => d.ProviderId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Reviews_Provider");
+        });
+
         modelBuilder.Entity<Role>(entity =>
         {
             entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1AEF705507");
@@ -734,6 +1213,22 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
         });
 
+        modelBuilder.Entity<Ticket>(entity =>
+        {
+            entity.HasKey(e => e.TicketId).HasName("PK__Tickets__712CC607AA9701D8");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Status)
+                .HasMaxLength(50)
+                .HasDefaultValue("Open");
+            entity.Property(e => e.Subject).HasMaxLength(200);
+
+            entity.HasOne(d => d.User).WithMany(p => p.Tickets)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Tickets_Users");
+        });
+
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(e => e.UserId).HasName("PK__Users__1788CC4CBBF8FAA8");
@@ -741,6 +1236,10 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.Email, "IX_Users_Email");
 
             entity.HasIndex(e => new { e.RoleId, e.IsActive }, "IX_Users_Role_Active");
+
+            entity.HasIndex(e => e.Email, "UIX_Users_Email")
+                .IsUnique()
+                .HasFilter("([IsDeleted]=(0))");
 
             entity.HasIndex(e => e.Email, "UQ__Users__A9D1053418759F4D").IsUnique();
 
@@ -760,6 +1259,40 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.RoleId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Users_Role");
+        });
+
+        modelBuilder.Entity<VitalSign>(entity =>
+        {
+            entity.HasKey(e => e.VitalSignId).HasName("PK__VitalSig__3365A46FD9DAF227");
+
+            entity.Property(e => e.BloodGlucose).HasColumnType("decimal(5, 2)");
+            entity.Property(e => e.Bmi)
+                .HasColumnType("decimal(5, 2)")
+                .HasColumnName("BMI");
+            entity.Property(e => e.Height).HasColumnType("decimal(5, 2)");
+            entity.Property(e => e.RecordedAt).HasDefaultValueSql("(getutcdate())");
+            entity.Property(e => e.Temperature).HasColumnType("decimal(4, 1)");
+            entity.Property(e => e.Weight).HasColumnType("decimal(5, 2)");
+
+            entity.HasOne(d => d.Patient).WithMany(p => p.VitalSigns)
+                .HasForeignKey(d => d.PatientId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_VitalSigns_Patient");
+
+            entity.HasOne(d => d.RecordedByNavigation).WithMany(p => p.VitalSigns)
+                .HasForeignKey(d => d.RecordedBy)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_VitalSigns_RecordedBy");
+        });
+
+        modelBuilder.Entity<VwDoctorAvailability>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_DoctorAvailability");
+
+            entity.Property(e => e.DoctorName).HasMaxLength(150);
+            entity.Property(e => e.SpecialtyName).HasMaxLength(150);
         });
 
         OnModelCreatingPartial(modelBuilder);

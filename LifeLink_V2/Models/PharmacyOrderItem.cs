@@ -5,6 +5,8 @@ namespace LifeLink_V2.Models;
 
 public partial class PharmacyOrderItem
 {
+    internal object Instructions;
+
     public int PharmacyOrderItemId { get; set; }
 
     public int PharmacyOrderId { get; set; }
@@ -19,8 +21,17 @@ public partial class PharmacyOrderItem
 
     public decimal LineTotalSyp { get; set; }
 
+    public bool IsDispensed { get; set; }
+
+    public int? DispensedQuantity { get; set; }
+
+    public DateTime? DispensedAt { get; set; }
+
+    public string? BatchNumber { get; set; }
+
+    public DateOnly? ExpiryDate { get; set; }
+
     public virtual Medicine Medicine { get; set; } = null!;
 
     public virtual PharmacyOrder PharmacyOrder { get; set; } = null!;
-    public string? Instructions { get; internal set; }
 }

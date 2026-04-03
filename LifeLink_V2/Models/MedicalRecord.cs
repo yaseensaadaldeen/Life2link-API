@@ -19,6 +19,8 @@ public partial class MedicalRecord
 
     public DateTime CreatedAt { get; set; }
 
+    public bool? IsDeleted { get; set; }
+
     public virtual ICollection<MedicalRecordMedFile> MedicalRecordMedFiles { get; set; } = new List<MedicalRecordMedFile>();
 
     public virtual Patient Patient { get; set; } = null!;
